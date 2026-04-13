@@ -1,0 +1,170 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required, < 100 chars)
+    //   - email: string (format: email)
+    //   - role: string (enum: ['farmer', 'buyer', 'admin'])
+    //   - farmSize: string (optional, < 50 chars)
+    //   - primaryCrops: list (optional, max 20 items, each < 50 chars)
+    //   - preferredProduce: list (optional, max 20 items, each < 50 chars)
+    //   - location: string (optional, < 100 chars)
+    //   - locationHistory: list (optional, max 50 items, each < 100 chars)
+    //
+    // Collection: orders
+    // Document ID: {orderId}
+    // Fields:
+    //   - buyerUid: string (required)
+    //   - itemId: string (required, < 50 chars)
+    //   - itemName: string (required, < 100 chars)
+    //   - price: string (required, < 50 chars)
+    //   - farmerName: string (optional, < 100 chars)
+    //   - status: string (enum: ['pending', 'completed', 'cancelled'])
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: produce
+    // Document ID: {produceId}
+    // Fields:
+    //   - farmerUid: string (required)
+    //   - farmerName: string (required, < 100 chars)
+    //   - name: string (required, < 100 chars)
+    //   - price: string (required, < 50 chars)
+    //   - quantity: string (required, < 50 chars)
+    //   - location: string (required, < 100 chars)
+    //   - image: string (required, < 1048576 chars)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: alerts
+    // Document ID: {alertId}
+    // Fields:
+    //   - userId: string (required)
+    //   - cropName: string (required, < 100 chars)
+    //   - targetPrice: number (required, > 0)
+    //   - condition: string (enum: ['above', 'below'])
+    //   - isActive: boolean (required)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "saikirankasu385@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidList(list, maxSize, maxItemSize) {
+      return list is list && list.size() <= maxSize && 
+             list.all(item, item is string && item.size() <= maxItemSize);
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role in ['farmer', 'buyer', 'admin'] &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('farmSize' in data) || (data.farmSize is string && data.farmSize.size() < 50)) &&
+             (!('location' in data) || (data.location is string && data.location.size() < 100)) &&
+             (!('primaryCrops' in data) || isValidList(data.primaryCrops, 20, 50)) &&
+             (!('preferredProduce' in data) || isValidList(data.preferredProduce, 20, 50)) &&
+             (!('locationHistory' in data) || isValidList(data.locationHistory, 50, 100));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['buyerUid', 'itemId', 'itemName', 'price', 'status', 'createdAt']) &&
+             data.buyerUid == request.auth.uid &&
+             data.itemId is string && data.itemId.size() > 0 && data.itemId.size() < 50 &&
+             data.itemName is string && data.itemName.size() > 0 && data.itemName.size() < 100 &&
+             data.price is string && data.price.size() > 0 && data.price.size() < 50 &&
+             (!('farmerName' in data) || (data.farmerName is string && data.farmerName.size() < 100)) &&
+             data.status in ['pending', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidProduce(data) {
+      return data.keys().hasAll(['farmerUid', 'farmerName', 'name', 'price', 'quantity', 'location', 'image', 'createdAt']) &&
+             data.farmerUid == request.auth.uid &&
+             data.farmerName is string && data.farmerName.size() > 0 && data.farmerName.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.price is string && data.price.size() > 0 && data.price.size() < 50 &&
+             data.quantity is string && data.quantity.size() > 0 && data.quantity.size() < 50 &&
+             data.location is string && data.location.size() > 0 && data.location.size() < 100 &&
+             data.image is string && data.image.size() > 0 && data.image.size() < 1048576 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['userId', 'cropName', 'targetPrice', 'condition', 'isActive', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.cropName is string && data.cropName.size() > 0 && data.cropName.size() < 100 &&
+             data.targetPrice is number && data.targetPrice > 0 &&
+             data.condition in ['above', 'below'] &&
+             data.isActive is bool &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.role != 'admin' || isAdmin());
+      
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      (request.resource.data.role == resource.data.role || isAdmin());
+      
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && resource.data.buyerUid == request.auth.uid;
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.buyerUid == request.auth.uid && isValidOrder(request.resource.data);
+    }
+
+    match /produce/{produceId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidProduce(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.farmerUid == request.auth.uid && isValidProduce(request.resource.data);
+      allow delete: if isAuthenticated() && resource.data.farmerUid == request.auth.uid;
+    }
+
+    match /alerts/{alertId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidAlert(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && isValidAlert(request.resource.data);
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

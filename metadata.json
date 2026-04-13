@@ -1,0 +1,8 @@
+{
+  "name": "AgriAssist",
+  "description": "A comprehensive AI-powered platform for farmers providing crop recommendations, disease detection, weather insights, and a marketplace for produce.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

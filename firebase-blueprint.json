@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Details about a farmer or buyer",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["farmer", "buyer"], "description": "User role" },
+        "farmSize": { "type": "string", "description": "Size of the farm (for farmers)" },
+        "primaryCrops": { "type": "array", "items": { "type": "string" }, "description": "Main crops grown (for farmers)" },
+        "preferredProduce": { "type": "array", "items": { "type": "string" }, "description": "Preferred produce types (for buyers)" },
+        "location": { "type": "string", "description": "User's primary location" },
+        "locationHistory": { "type": "array", "items": { "type": "string" }, "description": "History of locations" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A purchase order from the marketplace",
+      "type": "object",
+      "properties": {
+        "buyerUid": { "type": "string", "description": "UID of the buyer" },
+        "itemId": { "type": "string", "description": "ID of the purchased item" },
+        "itemName": { "type": "string", "description": "Name of the purchased item" },
+        "price": { "type": "string", "description": "Price of the item" },
+        "farmerName": { "type": "string", "description": "Name of the farmer selling the item" },
+        "status": { "type": "string", "enum": ["pending", "completed", "cancelled"], "description": "Order status" },
+        "createdAt": { "type": "timestamp", "description": "Time the order was placed" }
+      },
+      "required": ["buyerUid", "itemId", "itemName", "price", "status"]
+    },
+    "Produce": {
+      "title": "Produce",
+      "description": "An item listed for sale by a farmer",
+      "type": "object",
+      "properties": {
+        "farmerUid": { "type": "string", "description": "UID of the farmer" },
+        "farmerName": { "type": "string", "description": "Name of the farmer" },
+        "name": { "type": "string", "description": "Name of the produce" },
+        "price": { "type": "string", "description": "Price of the produce" },
+        "quantity": { "type": "string", "description": "Available quantity" },
+        "location": { "type": "string", "description": "Location of the produce" },
+        "image": { "type": "string", "description": "Base64 encoded image" },
+        "createdAt": { "type": "timestamp", "description": "Time the produce was listed" }
+      },
+      "required": ["farmerUid", "farmerName", "name", "price", "quantity", "location", "image", "createdAt"]
+    },
+    "Alert": {
+      "title": "Alert",
+      "description": "User crop price alert",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "cropName": { "type": "string", "description": "Name of the crop" },
+        "targetPrice": { "type": "number", "description": "Target price threshold" },
+        "condition": { "type": "string", "enum": ["above", "below"], "description": "Trigger condition" },
+        "isActive": { "type": "boolean", "description": "Whether the alert is active" },
+        "createdAt": { "type": "timestamp", "description": "Time the alert was created" }
+      },
+      "required": ["userId", "cropName", "targetPrice", "condition", "isActive", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile data stored by UID"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Purchase orders placed by buyers"
+    },
+    "/produce/{produceId}": {
+      "schema": "Produce",
+      "description": "Produce items listed by farmers"
+    },
+    "/alerts/{alertId}": {
+      "schema": "Alert",
+      "description": "Price alerts set by users"
+    }
+  }
+}
